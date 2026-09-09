@@ -1,4 +1,6 @@
 from builtins import range
+from cmath import exp
+
 import numpy as np
 from random import shuffle
 from past.builtins import xrange
@@ -27,22 +29,30 @@ def softmax_loss_naive(W, X, y, reg):
     dW = np.zeros_like(W)
 
     # compute the loss and the gradient
-    num_classes = W.shape[1]
-    num_train = X.shape[0]
+    num_classes = W.shape[1] # W (3073,10)
+    num_train = X.shape[0] # (49000,3072)
     for i in range(num_train):
         scores = X[i].dot(W)
 
         # compute the probabilities in numerically stable way
-        scores -= np.max(scores)
-        p = np.exp(scores)
+        scores -= np.max(scores) # 为了数值稳定
+        p = np.exp(scores) # 对分数取指数
         p /= p.sum()  # normalize
-        logp = np.log(p)
 
-        loss -= logp[y[i]]  # negative log probability is the loss
+        loss+=-np.log(p[y[i]])
+        dscores = p.copy()
+        dscores[y[i]] -= 1
 
+        dW += np.outer(X[i], dscores)
+
+    loss /= num_train
+    dW /=num_train
+
+    loss+= reg*np.sum(W**2)
+    dW += 2*reg*W
 
     # normalized hinge loss plus regularization
-    loss = loss / num_train + reg * np.sum(W * W)
+    #loss = loss / num_train + reg * np.sum(W * W) # L2 reg regularization strength
 
     #############################################################################
     # TODO:                                                                     #
@@ -67,14 +77,28 @@ def softmax_loss_vectorized(W, X, y, reg):
     loss = 0.0
     dW = np.zeros_like(W)
 
+    N = X.shape[0]
+    num_classes = W.shape[1]
 
+    scores = X.dot(W)
+    scores -= np.max(scores,axis=1,keepdims=True)
     #############################################################################
     # TODO:                                                                     #
     # Implement a vectorized version of the softmax loss, storing the           #
     # result in loss.                                                           #
     #############################################################################
+    exp_scores = np.exp(scores)
+    probs = exp_scores / np.sum(exp_scores,axis=1,keepdims=True)
 
+    correct_logprobs = -np.log(probs[range(N),y])
+    loss = -np.sum(np.log(probs[np.arange(N), y])) / N
 
+    loss+= reg*np.sum(W**2)
+    dscores = probs.copy()
+    dscores[np.arange(N),y] -= 1
+
+    dW = X.T.dot(dscores)/N
+    dW += 2*reg*W
     #############################################################################
     # TODO:                                                                     #
     # Implement a vectorized version of the gradient for the softmax            #
