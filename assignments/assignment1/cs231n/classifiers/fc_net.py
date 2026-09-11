@@ -55,6 +55,13 @@ class TwoLayerNet(object):
         # weights and biases using the keys 'W2' and 'b2'.                         #
         ############################################################################
 
+        # ------------------------------------------------------------------
+        # 初始化权重：符合高斯分布（标准差为 weight_scale），偏置初始化为 0
+        # ------------------------------------------------------------------
+        self.params["W1"] = np.random.normal(0, weight_scale, (input_dim, hidden_dim))
+        self.params["W2"]= np.random.normal(0, weight_scale, (hidden_dim, num_classes))
+        self.params["b1"] = np.zeros(hidden_dim)
+        self.params["b2"] = np.zeros(num_classes)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -83,6 +90,23 @@ class TwoLayerNet(object):
         # TODO: Implement the forward pass for the two-layer net, computing the    #
         # class scores for X and storing them in the scores variable.              #
         ############################################################################
+        W1, b1 = self.params["W1"], self.params["b1"]
+        W2, b2 = self.params["W2"], self.params["b2"]
+
+        # ================================================================
+        # 1. 前向传播 (Forward Pass)
+        # ================================================================
+        # 第一层：Affine -> ReLU
+        # (层函数内部会自动处理 X 的 reshape 展平操作，不需要手动执行)
+        A, cache1 = affine_relu_forward(X, W1, b1)
+
+        # 第二层：Affine -> Scores
+        # (第一层的输出 A 直接作为第二层的输入)
+        scores, cache2 = affine_forward(A, W2, b2)
+
+        # 如果 y 为 None，说明处于测试/预测模式，直接返回分数
+        if y is None:
+            return scores
 
         ############################################################################
         #                             END OF YOUR CODE                             #
@@ -103,7 +127,36 @@ class TwoLayerNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
+        # ================================================================
+        # 2. 计算损失 (Loss Calculation)
+        # ================================================================
+        # 计算 Softmax 数据损失和关于分数的梯度 dscores
+        data_loss, dscores = softmax_loss(scores, y)
 
+        # 计算 L2 正则化损失（使用你写好的矩阵平方和公式，注意使用 self.reg）
+        regularize_loss = 0.5 * self.reg * (np.sum(W1 ** 2) + np.sum(W2 ** 2))
+
+        # 总损失 = 数据损失 + 正则化损失
+        loss = data_loss + regularize_loss
+
+        # ================================================================
+        # 3. 反向传播 (Backward Pass)
+        # ================================================================
+        # 第二层反向传播：输入上游梯度 dscores 和第二层的 cache2
+        dh1, dW2, db2 = affine_backward(dscores, cache2)
+
+        # 第一层反向传播：输入上游梯度 dh1 和第一层的 cache1
+        dX, dW1, db1 = affine_relu_backward(dh1, cache1)
+
+        # ================================================================
+        # 4. 加上正则化梯度并存入字典
+        # ================================================================
+        # 梯度需要加上对应权重的正则化项导数 (reg * W)
+        grads["W2"] = dW2 + self.reg * W2
+        grads["b2"] = db2  # 修正了你之前的笔误 (原本误写成了 db1)
+
+        grads["W1"] = dW1 + self.reg * W1
+        grads["b1"] = db1
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
