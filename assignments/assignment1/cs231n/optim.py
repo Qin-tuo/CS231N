@@ -67,11 +67,12 @@ def sgd_momentum(w, dw, config=None):
     # TODO: Implement the momentum update formula. Store the updated value in #
     # the next_w variable. You should also use and update the velocity v.     #
     ###########################################################################
-
+    v_new = config.get("momentum") * v -config.get("learning_rate") * dw
+    next_w = w + v_new
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
-    config["velocity"] = v
+    config["velocity"] = v_new
 
     return next_w, config
 
@@ -101,7 +102,9 @@ def rmsprop(w, dw, config=None):
     # in the next_w variable. Don't forget to update cache value stored in    #
     # config['cache'].                                                        #
     ###########################################################################
-
+    cache_new = config.get("decay_rate") * config.get("cache") +(1-config.get("decay_rate"))*(dw**2)
+    next_w = w- ((config.get("learning_rate")*dw)/(np.sqrt(cache_new)+config.get("epsilon")))
+    config["cache"] = cache_new
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################
@@ -142,7 +145,12 @@ def adam(w, dw, config=None):
     # NOTE: In order to match the reference output, please modify t _before_  #
     # using it in any calculations.                                           #
     ###########################################################################
-
+    config["t"] = config.get("t") + 1
+    config["m"] = config.get("beta1") * config["m"] + (1 - config.get("beta1")) * dw
+    config["v"] = config.get("beta2") * config["v"] + (1 - config.get("beta2")) * (dw**2)
+    m_bar = config.get("m")/(1-np.pow(config.get("beta1"),config.get("t")))
+    v_bar = config.get("v")/(1-np.pow(config.get("beta2"),config.get("t")))
+    next_w = w - (config.get("learning_rate")*m_bar)/(np.sqrt(v_bar)+config.get("epsilon"))
     ###########################################################################
     #                             END OF YOUR CODE                            #
     ###########################################################################

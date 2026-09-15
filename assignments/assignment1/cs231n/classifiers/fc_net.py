@@ -24,12 +24,12 @@ class TwoLayerNet(object):
     """
 
     def __init__(
-        self,
-        input_dim=3 * 32 * 32,
-        hidden_dim=100,
-        num_classes=10,
-        weight_scale=1e-3,
-        reg=0.0,
+            self,
+            input_dim=3 * 32 * 32,
+            hidden_dim=100,
+            num_classes=10,
+            weight_scale=1e-3,
+            reg=0.0,
     ):
         """
         Initialize a new network.
@@ -59,7 +59,7 @@ class TwoLayerNet(object):
         # 初始化权重：符合高斯分布（标准差为 weight_scale），偏置初始化为 0
         # ------------------------------------------------------------------
         self.params["W1"] = np.random.normal(0, weight_scale, (input_dim, hidden_dim))
-        self.params["W2"]= np.random.normal(0, weight_scale, (hidden_dim, num_classes))
+        self.params["W2"] = np.random.normal(0, weight_scale, (hidden_dim, num_classes))
         self.params["b1"] = np.zeros(hidden_dim)
         self.params["b2"] = np.zeros(num_classes)
         ############################################################################
@@ -164,24 +164,23 @@ class TwoLayerNet(object):
         return loss, grads
 
     def save(self, fname):
-      """Save model parameters."""
-      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
-      params = self.params
-      np.save(fpath, params)
-      print(fname, "saved.")
-    
-    def load(self, fname):
-      """Load model parameters."""
-      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
-      if not os.path.exists(fpath):
-        print(fname, "not available.")
-        return False
-      else:
-        params = np.load(fpath, allow_pickle=True).item()
-        self.params = params
-        print(fname, "loaded.")
-        return True
+        """Save model parameters."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        params = self.params
+        np.save(fpath, params)
+        print(fname, "saved.")
 
+    def load(self, fname):
+        """Load model parameters."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        if not os.path.exists(fpath):
+            print(fname, "not available.")
+            return False
+        else:
+            params = np.load(fpath, allow_pickle=True).item()
+            self.params = params
+            print(fname, "loaded.")
+            return True
 
 
 class FullyConnectedNet(object):
@@ -201,16 +200,16 @@ class FullyConnectedNet(object):
     """
 
     def __init__(
-        self,
-        hidden_dims,
-        input_dim=3 * 32 * 32,
-        num_classes=10,
-        dropout_keep_ratio=1,
-        normalization=None,
-        reg=0.0,
-        weight_scale=1e-2,
-        dtype=np.float32,
-        seed=None,
+            self,
+            hidden_dims,
+            input_dim=3 * 32 * 32,
+            num_classes=10,
+            dropout_keep_ratio=1,
+            normalization=None,
+            reg=0.0,
+            weight_scale=1e-2,
+            dtype=np.float32,
+            seed=None,
     ):
         """Initialize a new FullyConnectedNet.
 
@@ -250,7 +249,17 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to ones and shift     #
         # parameters should be initialized to zeros.                               #
         ############################################################################
-
+        for layer in range(self.num_layers):
+            if layer == 0:
+                self.params[f"W{layer + 1}"] = np.random.normal(0, weight_scale, (input_dim, hidden_dims[layer]))
+                self.params[f"b{layer + 1}"] = np.zeros(hidden_dims[layer])
+            elif layer == self.num_layers - 1:
+                self.params[f"W{layer + 1}"] = np.random.normal(0, weight_scale, (hidden_dims[layer - 1], num_classes))
+                self.params[f"b{layer + 1}"] = np.zeros(num_classes)
+            else:
+                self.params[f"W{layer + 1}"] = np.random.normal(0, weight_scale,
+                                                                (hidden_dims[layer - 1], hidden_dims[layer]))
+                self.params[f"b{layer + 1}"] = np.zeros(hidden_dims[layer])
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -320,7 +329,19 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
+        Out = X
+        cache ={}
+        for layer in range(self.num_layers):
+            if layer < self.num_layers - 1:
+                Out, cache_tmp = affine_relu_forward(Out, self.params[f"W{layer + 1}"], self.params[f"b{layer + 1}"])
+                cache[layer + 1] = cache_tmp
+            elif layer == self.num_layers-1:
+                scores, cache_final = affine_forward(Out, self.params[f"W{layer+1}"], self.params[f"b{layer+1}"])
+                cache[layer+1] = cache_final
 
+        # 如果 y 为 None，说明处于测试/预测模式，直接返回分数
+        if y is None:
+            return scores
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -343,29 +364,56 @@ class FullyConnectedNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
+        # ================================================================
+        # 2. 计算损失 (Loss Calculation)
+        # ================================================================
+        # 计算 Softmax 数据损失和关于分数的梯度 dscores
+        data_loss, dscores = softmax_loss(scores, y)
 
+        regularize_loss = 0
+        for layer in range(self.num_layers):
+            # 计算 L2 正则化损失（使用你写好的矩阵平方和公式，注意使用 self.reg）
+            regularize_loss += 0.5 * self.reg * (np.sum(self.params[f"W{layer+1}"] ** 2))
+
+        # 总损失 = 数据损失 + 正则化损失
+        loss = data_loss + regularize_loss
+
+        # ================================================================
+        # 3. 反向传播 (Backward Pass)
+        # ================================================================
+        for layer in range(self.num_layers,0,-1):
+            if layer == self.num_layers:
+                dh, dW, db = affine_backward(dscores, cache[layer])
+            elif layer < self.num_layers:
+                dh, dW, db = affine_relu_backward(dh, cache[layer])
+
+            # ================================================================
+            # 4. 加上正则化梯度并存入字典
+            # ================================================================
+            # 梯度需要加上对应权重的正则化项导数 (reg * W)
+            grads[f"W{layer}"] = dW + self.reg * self.params[f"W{layer}"]
+            grads[f"b{layer}"] = db
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
 
         return loss, grads
 
-
     def save(self, fname):
-      """Save model parameters."""
-      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
-      params = self.params
-      np.save(fpath, params)
-      print(fname, "saved.")
-    
+        """Save model parameters."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        params = self.params
+        np.save(fpath, params)
+        print(fname, "saved.")
+
     def load(self, fname):
-      """Load model parameters."""
-      fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
-      if not os.path.exists(fpath):
-        print(fname, "not available.")
-        return False
-      else:
-        params = np.load(fpath, allow_pickle=True).item()
-        self.params = params
-        print(fname, "loaded.")
-        return True
+        """Load model parameters."""
+        fpath = os.path.join(os.path.dirname(__file__), "../saved/", fname)
+        if not os.path.exists(fpath):
+            print(fname, "not available.")
+            return False
+        else:
+            params = np.load(fpath, allow_pickle=True).item()
+            self.params = params
+            print(fname, "loaded.")
+            return True
