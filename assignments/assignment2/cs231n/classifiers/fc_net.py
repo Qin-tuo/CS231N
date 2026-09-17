@@ -72,7 +72,13 @@ class FullyConnectedNet(object):
         # beta2, etc. Scale parameters should be initialized to ones and shift     #
         # parameters should be initialized to zeros.                               #
         ############################################################################
-        # 
+        for l, (i, j) in enumerate(zip([input_dim, *hidden_dims], [*hidden_dims, num_classes])):
+            self.params[f'W{l + 1}'] = np.random.randn(i, j) * weight_scale
+            self.params[f'b{l + 1}'] = np.zeros(j)
+
+            if self.normalization and l < self.num_layers - 1:
+                self.params[f'gamma{l + 1}'] = np.ones(j)
+                self.params[f'beta{l + 1}'] = np.zeros(j)
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -142,7 +148,19 @@ class FullyConnectedNet(object):
         # self.bn_params[1] to the forward pass for the second batch normalization #
         # layer, etc.                                                              #
         ############################################################################
-        # 
+        cache = {}
+
+        for l in range(self.num_layers):
+            keys = [f'W{l + 1}', f'b{l + 1}', f'gamma{l + 1}', f'beta{l + 1}']  # list of params
+            w, b, gamma, beta = (self.params.get(k, None) for k in keys)  # get param vals
+
+            bn = self.bn_params[l] if gamma is not None else None  # bn params if exist
+            do = self.dropout_param if self.use_dropout else None  # do params if exist
+
+            X, cache[l] = generic_forward(X, w, b, gamma, beta, bn, do,
+                                          l == self.num_layers - 1)  # generic forward pass
+
+        scores = X
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
@@ -165,7 +183,18 @@ class FullyConnectedNet(object):
         # automated tests, make sure that your L2 regularization includes a factor #
         # of 0.5 to simplify the expression for the gradient.                      #
         ############################################################################
-        # 
+        loss, dout = softmax_loss(scores, y)
+        loss += 0.5 * self.reg * np.sum([np.sum(W ** 2) for k, W in self.params.items() if 'W' in k])
+
+        for l in reversed(range(self.num_layers)):
+            dout, dW, db, dgamma, dbeta = generic_backward(dout, cache[l])
+
+            grads[f'W{l + 1}'] = dW + self.reg * self.params[f'W{l + 1}']
+            grads[f'b{l + 1}'] = db
+
+            if dgamma is not None and l < self.num_layers - 1:
+                grads[f'gamma{l + 1}'] = dgamma
+                grads[f'beta{l + 1}'] = dbeta
         ############################################################################
         #                             END OF YOUR CODE                             #
         ############################################################################
